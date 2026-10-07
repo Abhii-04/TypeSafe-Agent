@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+
+HANDOFF_WITH_LAYA.md
+NODE_CONNECTION_REPORT.md
+
+docs/
+
+credentials.json
+token.json

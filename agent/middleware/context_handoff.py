@@ -1,0 +1,46 @@
+from textwrap import dedent
+from typing import Annotated
+from langchain_core.messages.tool import tool_call
+from langchain_core.tools import tool,BaseTool,InjectedToolCallId
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command
+from langgraph.prebuilt import InjectedState
+from langgraph_supervisor.handoff import METADATA_KEY_HANDOFF_DESTINATION
+
+def _normalize_agent_name(agent_name:str)->str:
+    """convert an agent name to a valid tool name format."""
+    return agent_name.strip().replace(" ","_").lower()
+
+
+#Custom handoff tool that lets the orchestrator transfer a task to naother agent with proper instructions
+def handoff_tool(*,agent_name:str,name:str|None=None,description:str|None=None) -> BaseTool:
+    """Create a tool that transfer control to another agent with specific task instructions."""
+    if name is None:
+        name = f"transfer_to_{_normalize_agent_name(agent_name)}"
+    if description is None:
+        description = f"Ask agent '{agent_name}' for help"
+
+    @tool(name,description=description)
+    def handoff_to_agent(task_instructions:Annotated(str,"What the target agent should do and return?"),state:Annotated[dict,InjectedState],tool_call_id:Annotated[str,InjectedToolCallId]):
+        """Handoff tool logic"""
+        tool_message = ToolMessage(
+            content = dedent(f"""
+            Succesfully transferred to {agent_name},
+            [INSTRUCTIONS TO FOLLOW]:{task_instructions}
+            """),
+            name=name,
+            tool_call_id= tool_call_id,
+            response_metadata = {METADATA_KEY_HANDOFF_DESTINATION:agent_name}
+        )
+
+        messages = state.get("messages",[])
+        return Command(
+            goto=agent_name,
+            update={
+                "messages":messages+[tool_message],
+                "task_instructinos":task_instructions,
+            }
+        )
+
+    handoff_to_agent.metadata = {METADATA_KEY_HANDOFF_DESTINATION:agent_name}
+    return handoff_to_agent
